@@ -5,6 +5,12 @@ import {
   UseGuards,
   NotFoundException,
 } from '@nestjs/common';
+import {
+  ApiTags,
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { HistoryService } from './history.service';
 import { DriversService } from '../drivers/drivers.service';
 import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
@@ -16,6 +22,8 @@ import type { AuthUser } from '../common/interfaces/authenticated-request.interf
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { EarningsQueryDto } from './dto/earnings-query.dto';
 
+@ApiTags('history')
+@ApiBearerAuth('jwt')
 @Controller('history')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class HistoryController {
@@ -27,23 +35,27 @@ export class HistoryController {
   /** Rider's past rides (paginated) */
   @Get('rides')
   @Roles(Role.RIDER)
+  @ApiOperation({ summary: 'Get rider past rides (paginated)' })
+  @ApiResponse({ status: 200, description: 'Paginated ride history' })
   async getRiderHistory(
     @CurrentUser() user: AuthUser,
     @Query() pagination: PaginationDto,
   ) {
+    const page = pagination.page ?? 1;
+    const limit = pagination.limit ?? 10;
     const { rides, total } = await this.historyService.getRiderHistory(
       user.id,
-      pagination.page!,
-      pagination.limit!,
+      page,
+      limit,
     );
 
     return {
       rides,
       pagination: {
-        page: pagination.page,
-        limit: pagination.limit,
+        page,
+        limit,
         total,
-        totalPages: Math.ceil(total / pagination.limit!),
+        totalPages: Math.ceil(total / limit),
       },
     };
   }
@@ -51,6 +63,8 @@ export class HistoryController {
   /** Driver's completed rides (paginated) */
   @Get('driver/rides')
   @Roles(Role.DRIVER)
+  @ApiOperation({ summary: 'Get driver completed rides (paginated)' })
+  @ApiResponse({ status: 200, description: 'Paginated ride history' })
   async getDriverHistory(
     @CurrentUser() user: AuthUser,
     @Query() pagination: PaginationDto,
@@ -58,19 +72,21 @@ export class HistoryController {
     const driver = await this.driversService.findByUserId(user.id);
     if (!driver) throw new NotFoundException('Driver profile not found');
 
+    const page = pagination.page ?? 1;
+    const limit = pagination.limit ?? 10;
     const { rides, total } = await this.historyService.getDriverHistory(
       driver.id,
-      pagination.page!,
-      pagination.limit!,
+      page,
+      limit,
     );
 
     return {
       rides,
       pagination: {
-        page: pagination.page,
-        limit: pagination.limit,
+        page,
+        limit,
         total,
-        totalPages: Math.ceil(total / pagination.limit!),
+        totalPages: Math.ceil(total / limit),
       },
     };
   }
@@ -78,6 +94,8 @@ export class HistoryController {
   /** Driver earnings summary (with optional date range) */
   @Get('driver/earnings')
   @Roles(Role.DRIVER)
+  @ApiOperation({ summary: 'Get driver earnings summary' })
+  @ApiResponse({ status: 200, description: 'Earnings summary' })
   async getDriverEarnings(
     @CurrentUser() user: AuthUser,
     @Query() query: EarningsQueryDto,

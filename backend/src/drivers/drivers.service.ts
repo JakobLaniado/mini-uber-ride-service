@@ -88,6 +88,7 @@ export class DriversService {
       );
 
       await this.cache.incr(VERSION_KEYS.NEARBY);
+      driver.locationUpdatedAt = new Date();
     }
 
     driver.currentLat = lat;

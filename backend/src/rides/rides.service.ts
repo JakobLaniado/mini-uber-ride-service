@@ -19,6 +19,8 @@ import {
   BusinessException,
   DriverUnavailableException,
 } from '../common/exceptions';
+import { CacheService } from '../cache/cache.service';
+import { VERSION_KEYS } from '../cache/cache-keys';
 import type { AuthUser } from '../common/interfaces/authenticated-request.interface';
 import type { CreateRideDto } from './dto/create-ride.dto';
 
@@ -38,6 +40,7 @@ export class RidesService {
     private readonly destinationResolver: DestinationResolverAgent,
     private readonly dispatchAgent: DispatchAgent,
     private readonly dataSource: DataSource,
+    private readonly cache: CacheService,
   ) {}
 
   // ─── POST /rides ───────────────────────────────────────────────
@@ -278,6 +281,7 @@ export class RidesService {
       // Release driver and increment trip count
       await this.driverRepo.update(driver.id, { activeRideId: null });
       await this.driverRepo.increment({ id: driver.id }, 'totalTrips', 1);
+      await this.cache.incr(VERSION_KEYS.NEARBY);
     }
 
     await this.rideRepo.save(ride);
@@ -418,6 +422,7 @@ export class RidesService {
     // Release driver
     if (ride.driverId) {
       await this.driverRepo.update(ride.driverId, { activeRideId: null });
+      await this.cache.incr(VERSION_KEYS.NEARBY);
     }
 
     await this.rideRepo.save(ride);

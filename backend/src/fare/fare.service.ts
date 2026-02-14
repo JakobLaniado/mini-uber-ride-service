@@ -1,4 +1,8 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SurgeZone } from './entities/surge-zone.entity';
@@ -159,8 +163,7 @@ export class FareService {
           centerLng: params.centerLng,
           radiusKm: params.radiusKm,
           multiplier: params.multiplier,
-          center: () =>
-            `ST_SetSRID(ST_MakePoint(:geoLng, :geoLat), 4326)`,
+          center: () => `ST_SetSRID(ST_MakePoint(:geoLng, :geoLat), 4326)`,
         })
         .setParameters({ geoLng: params.centerLng, geoLat: params.centerLat })
         .returning('*')
@@ -186,12 +189,18 @@ export class FareService {
     id: string,
     params: { multiplier?: number; isActive?: boolean },
   ): Promise<void> {
-    await this.surgeZoneRepo.update(id, params);
+    const result = await this.surgeZoneRepo.update(id, params);
+    if (result.affected === 0) {
+      throw new NotFoundException(`Surge zone "${id}" not found`);
+    }
     await this.invalidateSurgeCache();
   }
 
   async deleteSurgeZone(id: string): Promise<void> {
-    await this.surgeZoneRepo.delete(id);
+    const result = await this.surgeZoneRepo.delete(id);
+    if (result.affected === 0) {
+      throw new NotFoundException(`Surge zone "${id}" not found`);
+    }
     await this.invalidateSurgeCache();
   }
 
