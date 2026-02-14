@@ -6,12 +6,15 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Driver } from './entities/driver.entity';
+import { CacheService } from '../cache/cache.service';
+import { CacheKeys, VERSION_KEYS } from '../cache/cache-keys';
 
 @Injectable()
 export class DriversService {
   constructor(
     @InjectRepository(Driver)
     private readonly driverRepo: Repository<Driver>,
+    private readonly cache: CacheService,
   ) {}
 
   async register(
@@ -50,7 +53,9 @@ export class DriversService {
   async updateStatus(userId: string, isOnline: boolean): Promise<Driver> {
     const driver = await this.getByUserId(userId);
     driver.isOnline = isOnline;
-    return this.driverRepo.save(driver);
+    const saved = await this.driverRepo.save(driver);
+    await this.cache.incr(VERSION_KEYS.NEARBY);
+    return saved;
   }
 
   async updateLocation(
@@ -72,6 +77,8 @@ export class DriversService {
       .where('id = :id', { id: driver.id })
       .execute();
 
+    await this.cache.incr(VERSION_KEYS.NEARBY);
+
     driver.currentLat = lat;
     driver.currentLng = lng;
     return driver;
@@ -82,6 +89,11 @@ export class DriversService {
     lng: number,
     radiusKm: number,
   ): Promise<(Driver & { distanceKm: number })[]> {
+    const ver = await this.cache.getVersion(VERSION_KEYS.NEARBY);
+    const key = CacheKeys.nearbyDrivers(ver, lat, lng, radiusKm);
+    const cached = await this.cache.get<(Driver & { distanceKm: number })[]>(key);
+    if (cached) return cached;
+
     const radiusMeters = radiusKm * 1000;
 
     const drivers = await this.driverRepo
@@ -107,9 +119,12 @@ export class DriversService {
       .setParameters({ lat, lng, radius: radiusMeters })
       .getRawAndEntities();
 
-    return drivers.entities.map((driver, i) => ({
+    const result = drivers.entities.map((driver, i) => ({
       ...driver,
       distanceKm: parseFloat(drivers.raw[i]?.distance_km ?? '0'),
     }));
+
+    await this.cache.set(key, result, 15); // 15s TTL
+    return result;
   }
 }

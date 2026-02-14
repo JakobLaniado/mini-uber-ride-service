@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { envValidationSchema } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
+import { CacheModule } from './cache/cache.module';
 import { AuthModule } from './auth/auth.module';
 import { DriversModule } from './drivers/drivers.module';
 import { FareModule } from './fare/fare.module';
@@ -18,6 +19,7 @@ import { AppService } from './app.service';
       envFilePath: '.env',
     }),
     DatabaseModule,
+    CacheModule,
     AuthModule,
     DriversModule,
     FareModule,

@@ -1,5 +1,14 @@
 import { DestinationResolverAgent } from './destination-resolver.agent';
 import type { LlmProvider } from '../providers/llm-provider.interface';
+import type { CacheService } from '../../cache/cache.service';
+
+const mockCache: jest.Mocked<CacheService> = {
+  get: jest.fn().mockResolvedValue(null),
+  set: jest.fn().mockResolvedValue(undefined),
+  del: jest.fn().mockResolvedValue(undefined),
+  incr: jest.fn().mockResolvedValue(1),
+  getVersion: jest.fn().mockResolvedValue(0),
+} as unknown as jest.Mocked<CacheService>;
 
 describe('DestinationResolverAgent', () => {
   let agent: DestinationResolverAgent;
@@ -7,7 +16,8 @@ describe('DestinationResolverAgent', () => {
 
   beforeEach(() => {
     mockLlm = { chat: jest.fn() };
-    agent = new DestinationResolverAgent(mockLlm);
+    mockCache.get.mockResolvedValue(null);
+    agent = new DestinationResolverAgent(mockLlm, mockCache);
   });
 
   it('should resolve a destination with high confidence', async () => {
