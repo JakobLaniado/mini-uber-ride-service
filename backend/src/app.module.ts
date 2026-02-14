@@ -6,6 +6,7 @@ import { AuthModule } from './auth/auth.module';
 import { DriversModule } from './drivers/drivers.module';
 import { FareModule } from './fare/fare.module';
 import { RidesModule } from './rides/rides.module';
+import { HistoryModule } from './history/history.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -21,6 +22,7 @@ import { AppService } from './app.service';
     DriversModule,
     FareModule,
     RidesModule,
+    HistoryModule,
   ],
   controllers: [AppController],
   providers: [AppService],
