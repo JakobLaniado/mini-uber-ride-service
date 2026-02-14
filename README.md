@@ -6,9 +6,11 @@ A production-quality ride-hailing backend built with NestJS, featuring AI-powere
 
 - **NestJS 11** — modular backend framework
 - **TypeORM** + **PostgreSQL 16** + **PostGIS 3.4** — geospatial queries (nearby drivers, surge zones)
+- **Redis 7** — versioned caching for nearby drivers, surge zones, fare estimates, destination resolution
 - **JWT** + **Passport** — authentication with role-based access control (rider / driver / admin)
 - **OpenRouter / Gemini Flash** — LLM-powered destination resolution and dispatch (optional; deterministic mock provider works offline)
-- **Jest** + **Supertest** — unit and e2e tests
+- **Jest** + **Supertest** — unit and e2e tests (49 unit + 17 e2e)
+- **CLI Client** — Commander-based interactive client with full lifecycle demo
 
 ## Quick Start
 
@@ -17,14 +19,14 @@ A production-quality ride-hailing backend built with NestJS, featuring AI-powere
 - Node.js 18+
 - Docker & Docker Compose
 
-### 1. Start the database
+### 1. Start the infrastructure
 
 ```bash
 cd backend
 docker compose up -d
 ```
 
-This starts PostgreSQL with PostGIS on port **5433** (isolated container `mini-uber-postgres`).
+This starts PostgreSQL with PostGIS on port **5433** and Redis on port **6379**.
 
 ### 2. Configure environment
 
@@ -51,9 +53,19 @@ The API is available at `http://localhost:3000`.
 ### 5. Run tests
 
 ```bash
-npm test          # Unit tests (40 tests)
+npm test          # Unit tests (49 tests)
 npm run test:e2e  # E2E tests (17 tests, requires running DB)
 ```
+
+### 6. Run the CLI demo
+
+```bash
+cd ../cli
+npm install
+npx ts-node src/index.ts demo
+```
+
+This runs a full lifecycle: register rider + driver → create ride → AI dispatch → complete.
 
 ## AI / LLM Provider
 
@@ -207,10 +219,44 @@ Driver assignment uses `SELECT ... FOR UPDATE SKIP LOCKED` to prevent double-ass
 
 See [claude/architecture.md](claude/architecture.md) for detailed decisions on modules, state machine, concurrency, AI fallback, geospatial strategy, and fare calculation.
 
+## Caching Strategy
+
+Uses **versioned cache keys** for O(1) invalidation (no pattern scanning):
+
+| Data | Key Pattern | TTL | Invalidation |
+|------|-------------|-----|-------------|
+| Nearby drivers | `nearby:v{ver}:{lat3}:{lng3}:{r}` | 15s | `INCR nearby:ver` on driver status/location persist |
+| Surge multiplier | `surge:v{ver}:{lat3}:{lng3}` | 5min | `INCR surge:ver` on zone CRUD |
+| Fare estimate | `fare:v{ver}:{coords}` | 10min | `INCR fare:ver` on zone CRUD |
+| Destination | `dest:{text}:{lat1}:{lng1}` | 24h | Never (stable) |
+
+CacheService degrades gracefully — if Redis is down, the app works but slower. Rate-limited `logger.warn` on failures.
+
+### Location Write Throttling
+
+Driver GPS updates only persist to PostgreSQL when:
+- **>2 seconds** since last write, OR
+- **>50 meters** moved (haversine distance)
+
+Cache invalidation only fires on actual PG persists, preserving cache benefit for rapid-fire updates.
+
+## CLI Client
+
+Interactive CLI in `cli/` for testing and demo:
+
+```bash
+miniuber auth register          # Register (interactive prompts)
+miniuber auth login -e x -p y   # Login with flags
+miniuber driver online           # Go online
+miniuber ride create --pickup-lat 40.758 --pickup-lng -73.9855 --dest "JFK Airport"
+miniuber ride match <id>         # AI dispatch
+miniuber demo                    # Full automated lifecycle
+```
+
+Supports `MINIUBER_BASE_URL` env var and `--base-url` flag.
+
 ## Production Polish (Not Implemented — Shows Awareness)
 
 - **Rate limiting**: `@nestjs/throttler` on `/auth/login`, `/rides/:id/match`, `/drivers/me/location`
-- **Location write throttling**: persist max every 2-5s and/or if driver moved > 25-50m
 - **WebSocket**: real-time ride status updates for rider and driver
-- **Caching**: Redis for nearby driver queries, surge zone lookup
 - **Monitoring**: health checks, Prometheus metrics, structured logging
