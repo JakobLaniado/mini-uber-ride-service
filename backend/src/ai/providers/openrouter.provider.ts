@@ -19,7 +19,7 @@ export class OpenRouterProvider implements LlmProvider {
       baseURL: 'https://openrouter.ai/api/v1',
       apiKey: this.config.get<string>('OPENROUTER_API_KEY'),
     });
-    this.model = 'google/gemini-2.0-flash-exp:free';
+    this.model = 'google/gemini-2.0-flash-lite-001';
   }
 
   async chat(params: {
