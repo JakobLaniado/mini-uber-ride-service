@@ -8,6 +8,7 @@ import { Repository } from 'typeorm';
 import { Driver } from './entities/driver.entity';
 import { CacheService } from '../cache/cache.service';
 import { CacheKeys, VERSION_KEYS } from '../cache/cache-keys';
+import { haversineDistanceKm } from '../common/utils/geo';
 
 @Injectable()
 export class DriversService {
@@ -65,19 +66,33 @@ export class DriversService {
   ): Promise<Driver> {
     const driver = await this.getByUserId(userId);
 
-    await this.driverRepo
-      .createQueryBuilder()
-      .update(Driver)
-      .set({
-        currentLat: lat,
-        currentLng: lng,
-        currentLocation: () =>
-          `ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)`,
-      })
-      .where('id = :id', { id: driver.id })
-      .execute();
+    const timeSinceLastUpdate =
+      Date.now() - driver.locationUpdatedAt.getTime();
+    const distanceMoved =
+      driver.currentLat != null
+        ? haversineDistanceKm(
+            driver.currentLat,
+            driver.currentLng!,
+            lat,
+            lng,
+          ) * 1000 // meters
+        : Infinity;
 
-    await this.cache.incr(VERSION_KEYS.NEARBY);
+    if (timeSinceLastUpdate > 2000 || distanceMoved > 50) {
+      await this.driverRepo
+        .createQueryBuilder()
+        .update(Driver)
+        .set({
+          currentLat: lat,
+          currentLng: lng,
+          currentLocation: () =>
+            `ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)`,
+        })
+        .where('id = :id', { id: driver.id })
+        .execute();
+
+      await this.cache.incr(VERSION_KEYS.NEARBY);
+    }
 
     driver.currentLat = lat;
     driver.currentLng = lng;
