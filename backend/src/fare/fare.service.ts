@@ -1,7 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { SurgeZone } from './entities/surge-zone.entity';
+import { CacheService } from '../cache/cache.service';
+import { CacheKeys, VERSION_KEYS } from '../cache/cache-keys';
+import { haversineDistanceKm } from '../common/utils/geo';
 
 const BASE_FARE = 2.5;
 const PER_KM_RATE = 1.5;
@@ -22,6 +25,7 @@ export class FareService {
   constructor(
     @InjectRepository(SurgeZone)
     private readonly surgeZoneRepo: Repository<SurgeZone>,
+    private readonly cache: CacheService,
   ) {}
 
   calculateFare(
@@ -48,6 +52,11 @@ export class FareService {
     lat: number,
     lng: number,
   ): Promise<{ multiplier: number; zoneName: string | null }> {
+    const ver = await this.cache.getVersion(VERSION_KEYS.SURGE);
+    const key = CacheKeys.surgeMultiplier(ver, lat, lng);
+    const cached = await this.cache.get<{ multiplier: number; zoneName: string | null }>(key);
+    if (cached) return cached;
+
     const zone = await this.surgeZoneRepo
       .createQueryBuilder('zone')
       .where('zone.is_active = :active', { active: true })
@@ -69,10 +78,13 @@ export class FareService {
       .setParameters({ lat, lng })
       .getOne();
 
-    return {
+    const result = {
       multiplier: zone?.multiplier ?? 1.0,
       zoneName: zone?.name ?? null,
     };
+
+    await this.cache.set(key, result, 300); // 5 min TTL
+    return result;
   }
 
   async estimateFare(
@@ -81,6 +93,11 @@ export class FareService {
     destLat: number,
     destLng: number,
   ): Promise<FareBreakdown & { distanceKm: number; estimatedMinutes: number }> {
+    const ver = await this.cache.getVersion(VERSION_KEYS.FARE);
+    const key = CacheKeys.fareEstimate(ver, pickupLat, pickupLng, destLat, destLng);
+    const cached = await this.cache.get<FareBreakdown & { distanceKm: number; estimatedMinutes: number }>(key);
+    if (cached) return cached;
+
     const distanceKm = haversineDistanceKm(
       pickupLat,
       pickupLng,
@@ -97,12 +114,15 @@ export class FareService {
       surge.multiplier,
     );
 
-    return {
+    const result = {
       ...fare,
       surgeName: surge.zoneName,
       distanceKm: round(distanceKm),
       estimatedMinutes,
     };
+
+    await this.cache.set(key, result, 600); // 10 min TTL
+    return result;
   }
 
   // Surge zone CRUD
@@ -117,23 +137,37 @@ export class FareService {
     radiusKm: number;
     multiplier: number;
   }): Promise<SurgeZone> {
-    const result = await this.surgeZoneRepo
-      .createQueryBuilder()
-      .insert()
-      .into(SurgeZone)
-      .values({
-        name: params.name,
-        centerLat: params.centerLat,
-        centerLng: params.centerLng,
-        radiusKm: params.radiusKm,
-        multiplier: params.multiplier,
-        center: () =>
-          `ST_SetSRID(ST_MakePoint(${params.centerLng}, ${params.centerLat}), 4326)`,
-      })
-      .returning('*')
-      .execute();
+    try {
+      const result = await this.surgeZoneRepo
+        .createQueryBuilder()
+        .insert()
+        .into(SurgeZone)
+        .values({
+          name: params.name,
+          centerLat: params.centerLat,
+          centerLng: params.centerLng,
+          radiusKm: params.radiusKm,
+          multiplier: params.multiplier,
+          center: () =>
+            `ST_SetSRID(ST_MakePoint(${params.centerLng}, ${params.centerLat}), 4326)`,
+        })
+        .returning('*')
+        .execute();
 
-    return result.generatedMaps[0] as SurgeZone;
+      await this.invalidateSurgeCache();
+      return result.generatedMaps[0] as SurgeZone;
+    } catch (error: unknown) {
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        (error as Record<string, unknown>).code === '23505'
+      ) {
+        throw new ConflictException(
+          `Surge zone "${params.name}" already exists`,
+        );
+      }
+      throw error;
+    }
   }
 
   async updateSurgeZone(
@@ -141,32 +175,20 @@ export class FareService {
     params: { multiplier?: number; isActive?: boolean },
   ): Promise<void> {
     await this.surgeZoneRepo.update(id, params);
+    await this.invalidateSurgeCache();
   }
 
   async deleteSurgeZone(id: string): Promise<void> {
     await this.surgeZoneRepo.delete(id);
+    await this.invalidateSurgeCache();
+  }
+
+  private async invalidateSurgeCache(): Promise<void> {
+    await this.cache.incr(VERSION_KEYS.SURGE);
+    await this.cache.incr(VERSION_KEYS.FARE);
   }
 }
 
 function round(n: number): number {
   return Math.round(n * 100) / 100;
-}
-
-export function haversineDistanceKm(
-  lat1: number,
-  lng1: number,
-  lat2: number,
-  lng2: number,
-): number {
-  const R = 6371;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a =
-    Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function toRad(deg: number): number {
-  return deg * (Math.PI / 180);
 }

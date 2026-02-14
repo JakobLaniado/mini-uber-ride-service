@@ -1,6 +1,16 @@
-import { FareService, haversineDistanceKm } from './fare.service';
+import { FareService } from './fare.service';
+import { haversineDistanceKm } from '../common/utils/geo';
 import { Repository } from 'typeorm';
 import { SurgeZone } from './entities/surge-zone.entity';
+import type { CacheService } from '../cache/cache.service';
+
+const mockCache: jest.Mocked<CacheService> = {
+  get: jest.fn().mockResolvedValue(null),
+  set: jest.fn().mockResolvedValue(undefined),
+  del: jest.fn().mockResolvedValue(undefined),
+  incr: jest.fn().mockResolvedValue(1),
+  getVersion: jest.fn().mockResolvedValue(0),
+} as unknown as jest.Mocked<CacheService>;
 
 describe('FareService', () => {
   let service: FareService;
@@ -11,7 +21,7 @@ describe('FareService', () => {
       createQueryBuilder: jest.fn(),
       find: jest.fn(),
     } as unknown as jest.Mocked<Repository<SurgeZone>>;
-    service = new FareService(surgeZoneRepo);
+    service = new FareService(surgeZoneRepo, mockCache);
   });
 
   describe('calculateFare', () => {

@@ -6,12 +6,16 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Driver } from './entities/driver.entity';
+import { CacheService } from '../cache/cache.service';
+import { CacheKeys, VERSION_KEYS } from '../cache/cache-keys';
+import { haversineDistanceKm } from '../common/utils/geo';
 
 @Injectable()
 export class DriversService {
   constructor(
     @InjectRepository(Driver)
     private readonly driverRepo: Repository<Driver>,
+    private readonly cache: CacheService,
   ) {}
 
   async register(
@@ -50,7 +54,9 @@ export class DriversService {
   async updateStatus(userId: string, isOnline: boolean): Promise<Driver> {
     const driver = await this.getByUserId(userId);
     driver.isOnline = isOnline;
-    return this.driverRepo.save(driver);
+    const saved = await this.driverRepo.save(driver);
+    await this.cache.incr(VERSION_KEYS.NEARBY);
+    return saved;
   }
 
   async updateLocation(
@@ -60,17 +66,33 @@ export class DriversService {
   ): Promise<Driver> {
     const driver = await this.getByUserId(userId);
 
-    await this.driverRepo
-      .createQueryBuilder()
-      .update(Driver)
-      .set({
-        currentLat: lat,
-        currentLng: lng,
-        currentLocation: () =>
-          `ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)`,
-      })
-      .where('id = :id', { id: driver.id })
-      .execute();
+    const timeSinceLastUpdate =
+      Date.now() - driver.locationUpdatedAt.getTime();
+    const distanceMoved =
+      driver.currentLat != null
+        ? haversineDistanceKm(
+            driver.currentLat,
+            driver.currentLng!,
+            lat,
+            lng,
+          ) * 1000 // meters
+        : Infinity;
+
+    if (timeSinceLastUpdate > 2000 || distanceMoved > 50) {
+      await this.driverRepo
+        .createQueryBuilder()
+        .update(Driver)
+        .set({
+          currentLat: lat,
+          currentLng: lng,
+          currentLocation: () =>
+            `ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)`,
+        })
+        .where('id = :id', { id: driver.id })
+        .execute();
+
+      await this.cache.incr(VERSION_KEYS.NEARBY);
+    }
 
     driver.currentLat = lat;
     driver.currentLng = lng;
@@ -82,6 +104,11 @@ export class DriversService {
     lng: number,
     radiusKm: number,
   ): Promise<(Driver & { distanceKm: number })[]> {
+    const ver = await this.cache.getVersion(VERSION_KEYS.NEARBY);
+    const key = CacheKeys.nearbyDrivers(ver, lat, lng, radiusKm);
+    const cached = await this.cache.get<(Driver & { distanceKm: number })[]>(key);
+    if (cached) return cached;
+
     const radiusMeters = radiusKm * 1000;
 
     const drivers = await this.driverRepo
@@ -107,9 +134,12 @@ export class DriversService {
       .setParameters({ lat, lng, radius: radiusMeters })
       .getRawAndEntities();
 
-    return drivers.entities.map((driver, i) => ({
+    const result = drivers.entities.map((driver, i) => ({
       ...driver,
       distanceKm: parseFloat(drivers.raw[i]?.distance_km ?? '0'),
     }));
+
+    await this.cache.set(key, result, 15); // 15s TTL
+    return result;
   }
 }
