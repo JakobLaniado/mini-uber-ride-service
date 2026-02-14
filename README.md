@@ -9,7 +9,7 @@ A production-quality ride-hailing backend built with NestJS, featuring AI-powere
 - **Redis 7** — versioned caching for nearby drivers, surge zones, fare estimates, destination resolution
 - **JWT** + **Passport** — authentication with role-based access control (rider / driver / admin)
 - **OpenRouter / Gemini Flash** — LLM-powered destination resolution and dispatch (optional; deterministic mock provider works offline)
-- **Jest** + **Supertest** — unit and e2e tests (49 unit + 17 e2e)
+- **Jest** + **Supertest** — unit and e2e tests (49 unit + 25 e2e)
 - **CLI Client** — Commander-based interactive client with full lifecycle demo
 
 ## Quick Start
