@@ -4,6 +4,7 @@ import { envValidationSchema } from './config/env.validation';
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { DriversModule } from './drivers/drivers.module';
+import { FareModule } from './fare/fare.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -17,6 +18,7 @@ import { AppService } from './app.service';
     DatabaseModule,
     AuthModule,
     DriversModule,
+    FareModule,
   ],
   controllers: [AppController],
   providers: [AppService],
