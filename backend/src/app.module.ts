@@ -5,6 +5,7 @@ import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './auth/auth.module';
 import { DriversModule } from './drivers/drivers.module';
 import { FareModule } from './fare/fare.module';
+import { RidesModule } from './rides/rides.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -19,6 +20,7 @@ import { AppService } from './app.service';
     AuthModule,
     DriversModule,
     FareModule,
+    RidesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
