@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { App } from 'supertest/types';
+import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import { ResponseTransformInterceptor } from '../src/common/interceptors/response-transform.interceptor';
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
@@ -43,6 +44,14 @@ describe('Ride Lifecycle (e2e)', () => {
     app.useGlobalInterceptors(new ResponseTransformInterceptor());
     app.useGlobalFilters(new GlobalExceptionFilter());
     await app.init();
+
+    // Clean up stale data from previous test runs so only this run's
+    // driver shows up in findNearbyOnline queries.
+    const ds = app.get(DataSource);
+    await ds.query('DELETE FROM ride_events');
+    await ds.query('DELETE FROM rides');
+    await ds.query('DELETE FROM drivers');
+    await ds.query('DELETE FROM users');
   });
 
   afterAll(async () => {
@@ -272,5 +281,135 @@ describe('Ride Lifecycle (e2e)', () => {
     const b = body<{ totalRides: number; totalEarnings: number }>(res);
     expect(b.data.totalRides).toBeGreaterThanOrEqual(1);
     expect(b.data.totalEarnings).toBeGreaterThan(0);
+  });
+
+  // ── Cancellation flows ──────────────────────────────────────────
+
+  describe('Rider cancellation during REQUESTED', () => {
+    let cancelRideId: string;
+
+    it('should create a ride to cancel', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/rides')
+        .set('Authorization', `Bearer ${riderToken}`)
+        .send({
+          pickupLat: 40.758,
+          pickupLng: -73.9855,
+          destinationText: 'LaGuardia Airport',
+        })
+        .expect(201);
+
+      cancelRideId = body<{ id: string }>(res).data.id;
+    });
+
+    it('should allow rider to cancel during REQUESTED', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/rides/${cancelRideId}/cancel`)
+        .set('Authorization', `Bearer ${riderToken}`)
+        .send({ reason: 'Changed my mind' })
+        .expect(201);
+
+      const b = body<{ status: string; cancelledAt: string }>(res);
+      expect(b.data.status).toBe('cancelled');
+      expect(b.data.cancelledAt).toBeDefined();
+    });
+  });
+
+  // ── Destination change during IN_PROGRESS + driver cancel ───────
+
+  describe('Destination change in_progress and driver cancel with partial fare', () => {
+    let ride2Id: string;
+
+    it('should set driver online again (released after first ride)', async () => {
+      await request(app.getHttpServer())
+        .patch('/drivers/me/status')
+        .set('Authorization', `Bearer ${driverToken}`)
+        .send({ isOnline: true })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch('/drivers/me/location')
+        .set('Authorization', `Bearer ${driverToken}`)
+        .send({ lat: 40.76, lng: -73.98 })
+        .expect(200);
+    });
+
+    it('should create and match a second ride', async () => {
+      const createRes = await request(app.getHttpServer())
+        .post('/rides')
+        .set('Authorization', `Bearer ${riderToken}`)
+        .send({
+          pickupLat: 40.758,
+          pickupLng: -73.9855,
+          destinationText: 'Brooklyn Bridge',
+        })
+        .expect(201);
+
+      ride2Id = body<{ id: string }>(createRes).data.id;
+
+      await request(app.getHttpServer())
+        .post(`/rides/${ride2Id}/match`)
+        .set('Authorization', `Bearer ${riderToken}`)
+        .expect(201);
+    });
+
+    it('should advance to IN_PROGRESS', async () => {
+      await request(app.getHttpServer())
+        .patch(`/rides/${ride2Id}/status`)
+        .set('Authorization', `Bearer ${driverToken}`)
+        .send({ status: 'driver_arriving' })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch(`/rides/${ride2Id}/status`)
+        .set('Authorization', `Bearer ${driverToken}`)
+        .send({ status: 'in_progress' })
+        .expect(200);
+    });
+
+    it('should allow destination change during IN_PROGRESS', async () => {
+      const res = await request(app.getHttpServer())
+        .patch(`/rides/${ride2Id}/destination`)
+        .set('Authorization', `Bearer ${riderToken}`)
+        .send({ destinationText: 'Times Square' })
+        .expect(200);
+
+      const b = body<{ destinationAddress: string; estimatedFare: number }>(
+        res,
+      );
+      expect(b.data.destinationAddress).toBeDefined();
+      expect(b.data.estimatedFare).toBeDefined();
+    });
+
+    it('should reject rider cancel during IN_PROGRESS', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/rides/${ride2Id}/cancel`)
+        .set('Authorization', `Bearer ${riderToken}`)
+        .send({ reason: 'I want out' })
+        .expect(400);
+
+      const b = body(res);
+      expect(b.success).toBe(false);
+      expect(b.error?.code).toBe('CANCEL_NOT_ALLOWED');
+    });
+
+    it('should allow driver cancel during IN_PROGRESS with partial fare', async () => {
+      const res = await request(app.getHttpServer())
+        .post(`/rides/${ride2Id}/cancel`)
+        .set('Authorization', `Bearer ${driverToken}`)
+        .send({ reason: 'Emergency' })
+        .expect(201);
+
+      const b = body<{
+        status: string;
+        cancelledAt: string;
+        finalFare: string;
+      }>(res);
+      expect(b.data.status).toBe('cancelled');
+      expect(b.data.cancelledAt).toBeDefined();
+      // Partial fare should be calculated since ride was in progress
+      expect(b.data.finalFare).toBeDefined();
+      expect(Number(b.data.finalFare)).toBeGreaterThanOrEqual(0);
+    });
   });
 });

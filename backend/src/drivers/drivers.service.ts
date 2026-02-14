@@ -74,17 +74,18 @@ export class DriversService {
         : Infinity;
 
     if (timeSinceLastUpdate > 2000 || distanceMoved > 50) {
-      await this.driverRepo
-        .createQueryBuilder()
-        .update(Driver)
-        .set({
-          currentLat: lat,
-          currentLng: lng,
-          currentLocation: () =>
-            `ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)`,
-        })
-        .where('id = :id', { id: driver.id })
-        .execute();
+      // Parameterized raw query — avoids SQL injection and explicitly
+      // updates location_updated_at (QueryBuilder.update() skips
+      // @UpdateDateColumn since it only fires on TypeORM .save())
+      await this.driverRepo.query(
+        `UPDATE drivers
+         SET current_lat = $1,
+             current_lng = $2,
+             "currentLocation" = ST_SetSRID(ST_MakePoint($3, $4), 4326),
+             location_updated_at = NOW()
+         WHERE id = $5`,
+        [lat, lng, lng, lat, driver.id],
+      );
 
       await this.cache.incr(VERSION_KEYS.NEARBY);
     }

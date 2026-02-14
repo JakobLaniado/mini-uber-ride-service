@@ -15,11 +15,18 @@ import { JwtStrategy } from './strategies/jwt.strategy';
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
+      /**
+       * Mocked OIDC provider — JWTs include standard iss / aud claims.
+       * In production, replace secretOrKey with jwksUri from Auth0/Clerk
+       * and remove local register/login endpoints.
+       */
       useFactory: (config: ConfigService) => ({
         secret: config.get<string>('JWT_SECRET')!,
         signOptions: {
           expiresIn: (config.get<string>('JWT_EXPIRES_IN') ??
             '24h') as StringValue,
+          issuer: config.get<string>('AUTH_ISSUER'),
+          audience: config.get<string>('AUTH_AUDIENCE'),
         },
       }),
     }),

@@ -11,7 +11,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
+      // In production, replace secretOrKey with:
+      //   secretOrKeyProvider: passportJwtSecret({ jwksUri: `${issuer}.well-known/jwks.json` })
       secretOrKey: config.get<string>('JWT_SECRET')!,
+      issuer: config.get<string>('AUTH_ISSUER'),
+      audience: config.get<string>('AUTH_AUDIENCE'),
     });
   }
 

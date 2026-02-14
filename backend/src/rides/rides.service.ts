@@ -127,6 +127,21 @@ export class RidesService {
     await qr.startTransaction();
 
     try {
+      // Lock the ride row and re-verify status under the lock.
+      // Prevents double-match when two concurrent requests both pass
+      // the preliminary assertTransition check above.
+      const [lockedRide] = (await qr.query(
+        `SELECT status FROM rides WHERE id = $1 FOR UPDATE`,
+        [rideId],
+      )) as { status: string }[];
+      if (!lockedRide) {
+        throw new NotFoundException('Ride not found');
+      }
+      RideStateMachine.assertTransition(
+        lockedRide.status as RideStatus,
+        RideStatus.MATCHED,
+      );
+
       let assignedDriverId: string | null = null;
 
       for (const driverId of orderedIds) {

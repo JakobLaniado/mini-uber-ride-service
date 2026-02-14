@@ -160,8 +160,9 @@ export class FareService {
           radiusKm: params.radiusKm,
           multiplier: params.multiplier,
           center: () =>
-            `ST_SetSRID(ST_MakePoint(${params.centerLng}, ${params.centerLat}), 4326)`,
+            `ST_SetSRID(ST_MakePoint(:geoLng, :geoLat), 4326)`,
         })
+        .setParameters({ geoLng: params.centerLng, geoLat: params.centerLat })
         .returning('*')
         .execute();
 

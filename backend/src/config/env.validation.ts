@@ -20,6 +20,10 @@ export const envValidationSchema = Joi.object({
   REDIS_PORT: Joi.number().default(6379),
   REDIS_PASSWORD: Joi.string().optional().allow(''),
 
+  // Auth / OIDC
+  AUTH_ISSUER: Joi.string().required(),
+  AUTH_AUDIENCE: Joi.string().required(),
+
   // OpenRouter (optional)
   OPENROUTER_API_KEY: Joi.string().optional().allow(''),
 });
