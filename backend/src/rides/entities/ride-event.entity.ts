@@ -28,7 +28,7 @@ export class RideEvent {
   toStatus: RideStatus;
 
   @Column({ type: 'jsonb', nullable: true })
-  metadata: Record<string, any> | null;
+  metadata: Record<string, unknown> | null;
 
   @CreateDateColumn()
   timestamp: Date;

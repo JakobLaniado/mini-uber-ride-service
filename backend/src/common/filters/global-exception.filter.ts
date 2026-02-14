@@ -20,7 +20,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let code = 'INTERNAL_ERROR';
     let message = 'An unexpected error occurred';
-    let details: any = undefined;
+    let details: string[] | undefined = undefined;
 
     if (exception instanceof BusinessException) {
       status = exception.getStatus();
@@ -31,7 +31,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       const exResponse = exception.getResponse();
 
       if (typeof exResponse === 'object' && 'message' in exResponse) {
-        const messages = (exResponse as any).message;
+        const messages = (exResponse as Record<string, unknown>).message;
         if (Array.isArray(messages)) {
           code = 'VALIDATION_ERROR';
           message = 'Validation failed';

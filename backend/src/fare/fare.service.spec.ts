@@ -10,7 +10,7 @@ describe('FareService', () => {
     surgeZoneRepo = {
       createQueryBuilder: jest.fn(),
       find: jest.fn(),
-    } as any;
+    } as unknown as jest.Mocked<Repository<SurgeZone>>;
     service = new FareService(surgeZoneRepo);
   });
 

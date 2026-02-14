@@ -117,13 +117,6 @@ export class FareService {
     radiusKm: number;
     multiplier: number;
   }): Promise<SurgeZone> {
-    const zone = this.surgeZoneRepo.create({
-      ...params,
-      center: () =>
-        `ST_SetSRID(ST_MakePoint(${params.centerLng}, ${params.centerLat}), 4326)`,
-    } as any);
-
-    // Use query builder to properly set the PostGIS point
     const result = await this.surgeZoneRepo
       .createQueryBuilder()
       .insert()
