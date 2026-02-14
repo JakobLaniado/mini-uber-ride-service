@@ -130,10 +130,10 @@ export class RidesService {
       let assignedDriverId: string | null = null;
 
       for (const driverId of orderedIds) {
-        const rows = await qr.query(
+        const rows = (await qr.query(
           `SELECT id FROM drivers WHERE id = $1 AND active_ride_id IS NULL FOR UPDATE SKIP LOCKED`,
           [driverId],
-        );
+        )) as unknown[];
         if (rows.length > 0) {
           assignedDriverId = driverId;
           break;
@@ -179,9 +179,7 @@ export class RidesService {
 
       await qr.commitTransaction();
 
-      this.logger.log(
-        `Ride ${rideId} matched with driver ${assignedDriverId}`,
-      );
+      this.logger.log(`Ride ${rideId} matched with driver ${assignedDriverId}`);
 
       return this.rideRepo.findOne({
         where: { id: rideId },
@@ -273,9 +271,10 @@ export class RidesService {
       rideId: ride.id,
       fromStatus,
       toStatus: newStatus,
-      metadata: newStatus === RideStatus.COMPLETED
-        ? { finalFare: ride.finalFare, durationMinutes: ride.durationMinutes }
-        : null,
+      metadata:
+        newStatus === RideStatus.COMPLETED
+          ? { finalFare: ride.finalFare, durationMinutes: ride.durationMinutes }
+          : null,
     });
 
     return ride;

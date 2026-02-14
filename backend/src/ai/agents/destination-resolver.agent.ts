@@ -50,7 +50,7 @@ If you truly cannot determine coordinates, return confidence: 0.`;
       temperature: 0.1,
     });
 
-    const parsed = JSON.parse(response);
+    const parsed = JSON.parse(response) as ResolvedDestination;
 
     if (parsed.confidence < 0.3) {
       throw new BusinessException(

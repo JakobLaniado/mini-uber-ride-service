@@ -16,7 +16,12 @@ function r1(n: number): string {
 }
 
 export const CacheKeys = {
-  nearbyDrivers(ver: number, lat: number, lng: number, radiusKm: number): string {
+  nearbyDrivers(
+    ver: number,
+    lat: number,
+    lng: number,
+    radiusKm: number,
+  ): string {
     return `nearby:v${ver}:${r3(lat)}:${r3(lng)}:${radiusKm}`;
   },
 

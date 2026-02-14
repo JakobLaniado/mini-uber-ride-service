@@ -1,4 +1,5 @@
 import { RideStatus } from '../enums';
+import { RideStateException } from '../exceptions/ride-state.exception';
 
 export const VALID_TRANSITIONS: Record<RideStatus, RideStatus[]> = {
   [RideStatus.REQUESTED]: [RideStatus.MATCHED, RideStatus.CANCELLED],
@@ -16,9 +17,6 @@ export class RideStateMachine {
 
   static assertTransition(from: RideStatus, to: RideStatus): void {
     if (!this.canTransition(from, to)) {
-      // Import here to avoid circular dependency at module level
-      const { RideStateException } =
-        require('../exceptions/ride-state.exception');
       throw new RideStateException(from, to);
     }
   }

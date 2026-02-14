@@ -32,8 +32,8 @@ describe('CacheService', () => {
 
     service = new CacheService(configService);
     // Access the internal mock
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockRedis = (service as any).redis;
+    mockRedis = (service as unknown as { redis: Record<string, jest.Mock> })
+      .redis;
   });
 
   afterEach(async () => {

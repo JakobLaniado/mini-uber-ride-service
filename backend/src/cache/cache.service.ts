@@ -18,14 +18,15 @@ export class CacheService implements OnModuleDestroy {
       password: config.get<string>('REDIS_PASSWORD') || undefined,
       lazyConnect: true,
       maxRetriesPerRequest: 1,
-      retryStrategy: (times) => (times > 3 ? null : Math.min(times * 200, 2000)),
+      retryStrategy: (times) =>
+        times > 3 ? null : Math.min(times * 200, 2000),
     });
 
     this.redis.on('error', (err) => this.warnThrottled(err.message));
 
     // Attempt initial connection (non-blocking)
-    this.redis.connect().catch((err) => {
-      this.warnThrottled(`Redis connection failed: ${err.message}`);
+    this.redis.connect().catch((err: unknown) => {
+      this.warnThrottled(`Redis connection failed: ${(err as Error).message}`);
     });
   }
 

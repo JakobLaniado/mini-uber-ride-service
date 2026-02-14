@@ -59,7 +59,7 @@ ${params.candidates
       temperature: 0.2,
     });
 
-    const parsed = JSON.parse(response);
+    const parsed = JSON.parse(response) as DispatchDecision;
 
     // Validate that selectedDriverId actually exists in candidates
     const validDriver = params.candidates.find(

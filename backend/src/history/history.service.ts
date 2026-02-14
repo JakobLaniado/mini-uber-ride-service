@@ -70,22 +70,14 @@ export class HistoryService {
       qb.andWhere('ride.completed_at <= :to', { to });
     }
 
-    const result = await qb
+    const raw: unknown = await qb
       .select('COUNT(*)::int', 'totalRides')
       .addSelect('COALESCE(SUM(ride.final_fare), 0)::float', 'totalEarnings')
-      .addSelect(
-        'COALESCE(AVG(ride.final_fare), 0)::float',
-        'averageFare',
-      )
-      .addSelect(
-        'COALESCE(SUM(ride.distance_km), 0)::float',
-        'totalDistanceKm',
-      )
-      .addSelect(
-        'COALESCE(SUM(ride.duration_minutes), 0)::int',
-        'totalMinutes',
-      )
+      .addSelect('COALESCE(AVG(ride.final_fare), 0)::float', 'averageFare')
+      .addSelect('COALESCE(SUM(ride.distance_km), 0)::float', 'totalDistanceKm')
+      .addSelect('COALESCE(SUM(ride.duration_minutes), 0)::int', 'totalMinutes')
       .getRawOne();
+    const result = raw as EarningsSummary | undefined;
 
     return {
       totalRides: result?.totalRides ?? 0,

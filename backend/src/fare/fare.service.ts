@@ -54,7 +54,10 @@ export class FareService {
   ): Promise<{ multiplier: number; zoneName: string | null }> {
     const ver = await this.cache.getVersion(VERSION_KEYS.SURGE);
     const key = CacheKeys.surgeMultiplier(ver, lat, lng);
-    const cached = await this.cache.get<{ multiplier: number; zoneName: string | null }>(key);
+    const cached = await this.cache.get<{
+      multiplier: number;
+      zoneName: string | null;
+    }>(key);
     if (cached) return cached;
 
     const zone = await this.surgeZoneRepo
@@ -94,8 +97,16 @@ export class FareService {
     destLng: number,
   ): Promise<FareBreakdown & { distanceKm: number; estimatedMinutes: number }> {
     const ver = await this.cache.getVersion(VERSION_KEYS.FARE);
-    const key = CacheKeys.fareEstimate(ver, pickupLat, pickupLng, destLat, destLng);
-    const cached = await this.cache.get<FareBreakdown & { distanceKm: number; estimatedMinutes: number }>(key);
+    const key = CacheKeys.fareEstimate(
+      ver,
+      pickupLat,
+      pickupLng,
+      destLat,
+      destLng,
+    );
+    const cached = await this.cache.get<
+      FareBreakdown & { distanceKm: number; estimatedMinutes: number }
+    >(key);
     if (cached) return cached;
 
     const distanceKm = haversineDistanceKm(

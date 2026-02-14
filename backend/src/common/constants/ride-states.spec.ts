@@ -14,12 +14,9 @@ describe('RideStateMachine', () => {
       [RideStatus.IN_PROGRESS, RideStatus.CANCELLED],
     ];
 
-    it.each(validTransitions)(
-      'should allow %s → %s',
-      (from, to) => {
-        expect(RideStateMachine.canTransition(from, to)).toBe(true);
-      },
-    );
+    it.each(validTransitions)('should allow %s → %s', (from, to) => {
+      expect(RideStateMachine.canTransition(from, to)).toBe(true);
+    });
 
     const invalidTransitions: [RideStatus, RideStatus][] = [
       [RideStatus.REQUESTED, RideStatus.IN_PROGRESS],
@@ -36,12 +33,9 @@ describe('RideStateMachine', () => {
       [RideStatus.CANCELLED, RideStatus.MATCHED],
     ];
 
-    it.each(invalidTransitions)(
-      'should reject %s → %s',
-      (from, to) => {
-        expect(RideStateMachine.canTransition(from, to)).toBe(false);
-      },
-    );
+    it.each(invalidTransitions)('should reject %s → %s', (from, to) => {
+      expect(RideStateMachine.canTransition(from, to)).toBe(false);
+    });
   });
 
   describe('assertTransition', () => {
@@ -66,15 +60,18 @@ describe('RideStateMachine', () => {
 
   describe('getAllowedTransitions', () => {
     it('should return allowed transitions for REQUESTED', () => {
-      expect(RideStateMachine.getAllowedTransitions(RideStatus.REQUESTED)).toEqual([
-        RideStatus.MATCHED,
-        RideStatus.CANCELLED,
-      ]);
+      expect(
+        RideStateMachine.getAllowedTransitions(RideStatus.REQUESTED),
+      ).toEqual([RideStatus.MATCHED, RideStatus.CANCELLED]);
     });
 
     it('should return empty array for terminal states', () => {
-      expect(RideStateMachine.getAllowedTransitions(RideStatus.COMPLETED)).toEqual([]);
-      expect(RideStateMachine.getAllowedTransitions(RideStatus.CANCELLED)).toEqual([]);
+      expect(
+        RideStateMachine.getAllowedTransitions(RideStatus.COMPLETED),
+      ).toEqual([]);
+      expect(
+        RideStateMachine.getAllowedTransitions(RideStatus.CANCELLED),
+      ).toEqual([]);
     });
   });
 });

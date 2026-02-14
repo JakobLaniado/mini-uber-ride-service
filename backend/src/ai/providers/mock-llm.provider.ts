@@ -9,7 +9,7 @@ import { LlmProvider } from './llm-provider.interface';
 export class MockLlmProvider implements LlmProvider {
   private readonly logger = new Logger(MockLlmProvider.name);
 
-  async chat(params: {
+  chat(params: {
     systemPrompt: string;
     userMessage: string;
     temperature?: number;
@@ -18,15 +18,17 @@ export class MockLlmProvider implements LlmProvider {
 
     // Detect which agent is calling based on system prompt content
     if (params.systemPrompt.includes('geocoding')) {
-      return this.mockDestinationResolution(params.userMessage);
+      return Promise.resolve(
+        this.mockDestinationResolution(params.userMessage),
+      );
     }
 
     if (params.systemPrompt.includes('dispatch')) {
-      return this.mockDispatch(params.userMessage);
+      return Promise.resolve(this.mockDispatch(params.userMessage));
     }
 
     // Generic fallback
-    return JSON.stringify({ message: 'Mock response' });
+    return Promise.resolve(JSON.stringify({ message: 'Mock response' }));
   }
 
   private mockDestinationResolution(userMessage: string): string {
@@ -71,9 +73,7 @@ export class MockLlmProvider implements LlmProvider {
 
   private mockDispatch(userMessage: string): string {
     // Extract driver IDs from the user message
-    const idMatches = userMessage.match(
-      /ID: ([0-9a-f-]{36})/g,
-    );
+    const idMatches = userMessage.match(/ID: ([0-9a-f-]{36})/g);
     if (!idMatches || idMatches.length === 0) {
       return JSON.stringify({
         selectedDriverId: 'unknown',

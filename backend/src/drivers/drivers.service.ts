@@ -66,16 +66,11 @@ export class DriversService {
   ): Promise<Driver> {
     const driver = await this.getByUserId(userId);
 
-    const timeSinceLastUpdate =
-      Date.now() - driver.locationUpdatedAt.getTime();
+    const timeSinceLastUpdate = Date.now() - driver.locationUpdatedAt.getTime();
     const distanceMoved =
       driver.currentLat != null
-        ? haversineDistanceKm(
-            driver.currentLat,
-            driver.currentLng!,
-            lat,
-            lng,
-          ) * 1000 // meters
+        ? haversineDistanceKm(driver.currentLat, driver.currentLng!, lat, lng) *
+          1000 // meters
         : Infinity;
 
     if (timeSinceLastUpdate > 2000 || distanceMoved > 50) {
@@ -106,7 +101,8 @@ export class DriversService {
   ): Promise<(Driver & { distanceKm: number })[]> {
     const ver = await this.cache.getVersion(VERSION_KEYS.NEARBY);
     const key = CacheKeys.nearbyDrivers(ver, lat, lng, radiusKm);
-    const cached = await this.cache.get<(Driver & { distanceKm: number })[]>(key);
+    const cached =
+      await this.cache.get<(Driver & { distanceKm: number })[]>(key);
     if (cached) return cached;
 
     const radiusMeters = radiusKm * 1000;
@@ -134,9 +130,10 @@ export class DriversService {
       .setParameters({ lat, lng, radius: radiusMeters })
       .getRawAndEntities();
 
+    const raw = drivers.raw as { distance_km?: string }[];
     const result = drivers.entities.map((driver, i) => ({
       ...driver,
-      distanceKm: parseFloat(drivers.raw[i]?.distance_km ?? '0'),
+      distanceKm: parseFloat(raw[i]?.distance_km ?? '0'),
     }));
 
     await this.cache.set(key, result, 15); // 15s TTL

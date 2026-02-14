@@ -62,6 +62,7 @@ describe('DispatchAgent', () => {
 
     expect(result.selectedDriverId).toBe('driver-2');
     expect(result.reasoning).toBe('Closest driver with acceptable rating.');
+    // eslint-disable-next-line @typescript-eslint/unbound-method
     expect(mockLlm.chat).toHaveBeenCalledTimes(1);
   });
 

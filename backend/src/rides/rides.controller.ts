@@ -29,10 +29,7 @@ export class RidesController {
   @Post()
   @UseGuards(RolesGuard)
   @Roles(Role.RIDER)
-  createRide(
-    @CurrentUser() user: AuthUser,
-    @Body() dto: CreateRideDto,
-  ) {
+  createRide(@CurrentUser() user: AuthUser, @Body() dto: CreateRideDto) {
     return this.ridesService.createRide(user.id, dto);
   }
 
@@ -77,7 +74,11 @@ export class RidesController {
     @Param('id', ParseUUIDPipe) id: string,
     @Body() dto: ChangeDestinationDto,
   ) {
-    return this.ridesService.changeDestination(id, user.id, dto.destinationText);
+    return this.ridesService.changeDestination(
+      id,
+      user.id,
+      dto.destinationText,
+    );
   }
 
   /** Cancel ride (rider: before in_progress; driver: any time) */

@@ -6,6 +6,17 @@ import { AppModule } from '../src/app.module';
 import { ResponseTransformInterceptor } from '../src/common/interceptors/response-transform.interceptor';
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
 
+/** Typed wrapper for the standard API envelope */
+interface ApiBody<T = Record<string, unknown>> {
+  success: boolean;
+  data: T;
+  error: { code: string; message: string } | null;
+}
+
+function body<T = Record<string, unknown>>(res: request.Response): ApiBody<T> {
+  return res.body as ApiBody<T>;
+}
+
 /**
  * E2E test: full ride lifecycle.
  * Requires running PostgreSQL (docker compose up -d).
@@ -51,9 +62,10 @@ describe('Ride Lifecycle (e2e)', () => {
       })
       .expect(201);
 
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.accessToken).toBeDefined();
-    riderToken = res.body.data.accessToken;
+    const b = body<{ accessToken: string }>(res);
+    expect(b.success).toBe(true);
+    expect(b.data.accessToken).toBeDefined();
+    riderToken = b.data.accessToken;
   });
 
   it('should register a driver user', async () => {
@@ -67,8 +79,9 @@ describe('Ride Lifecycle (e2e)', () => {
       })
       .expect(201);
 
-    expect(res.body.success).toBe(true);
-    driverToken = res.body.data.accessToken;
+    const b = body<{ accessToken: string }>(res);
+    expect(b.success).toBe(true);
+    driverToken = b.data.accessToken;
   });
 
   // ── Driver setup ────────────────────────────────────────────────
@@ -85,7 +98,7 @@ describe('Ride Lifecycle (e2e)', () => {
       })
       .expect(201);
 
-    expect(res.body.success).toBe(true);
+    expect(body(res).success).toBe(true);
   });
 
   it('should set driver online', async () => {
@@ -117,11 +130,17 @@ describe('Ride Lifecycle (e2e)', () => {
       })
       .expect(201);
 
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.status).toBe('requested');
-    expect(res.body.data.destinationAddress).toBeDefined();
-    expect(res.body.data.estimatedFare).toBeDefined();
-    rideId = res.body.data.id;
+    const b = body<{
+      id: string;
+      status: string;
+      destinationAddress: string;
+      estimatedFare: number;
+    }>(res);
+    expect(b.success).toBe(true);
+    expect(b.data.status).toBe('requested');
+    expect(b.data.destinationAddress).toBeDefined();
+    expect(b.data.estimatedFare).toBeDefined();
+    rideId = b.data.id;
   });
 
   it('should match ride with a driver (MATCHED)', async () => {
@@ -130,10 +149,15 @@ describe('Ride Lifecycle (e2e)', () => {
       .set('Authorization', `Bearer ${riderToken}`)
       .expect(201);
 
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.status).toBe('matched');
-    expect(res.body.data.driverId).toBeDefined();
-    expect(res.body.data.dispatchReasoning).toBeDefined();
+    const b = body<{
+      status: string;
+      driverId: string;
+      dispatchReasoning: string;
+    }>(res);
+    expect(b.success).toBe(true);
+    expect(b.data.status).toBe('matched');
+    expect(b.data.driverId).toBeDefined();
+    expect(b.data.dispatchReasoning).toBeDefined();
   });
 
   it('should advance to DRIVER_ARRIVING', async () => {
@@ -143,7 +167,7 @@ describe('Ride Lifecycle (e2e)', () => {
       .send({ status: 'driver_arriving' })
       .expect(200);
 
-    expect(res.body.data.status).toBe('driver_arriving');
+    expect(body<{ status: string }>(res).data.status).toBe('driver_arriving');
   });
 
   it('should allow destination change during DRIVER_ARRIVING', async () => {
@@ -153,8 +177,9 @@ describe('Ride Lifecycle (e2e)', () => {
       .send({ destinationText: 'Central Park' })
       .expect(200);
 
-    expect(res.body.data.destinationAddress).toContain('Central Park');
-    expect(res.body.data.estimatedFare).toBeDefined();
+    const b = body<{ destinationAddress: string; estimatedFare: number }>(res);
+    expect(b.data.destinationAddress).toContain('Central Park');
+    expect(b.data.estimatedFare).toBeDefined();
   });
 
   it('should advance to IN_PROGRESS', async () => {
@@ -164,8 +189,9 @@ describe('Ride Lifecycle (e2e)', () => {
       .send({ status: 'in_progress' })
       .expect(200);
 
-    expect(res.body.data.status).toBe('in_progress');
-    expect(res.body.data.startedAt).toBeDefined();
+    const b = body<{ status: string; startedAt: string }>(res);
+    expect(b.data.status).toBe('in_progress');
+    expect(b.data.startedAt).toBeDefined();
   });
 
   it('should complete the ride', async () => {
@@ -175,10 +201,15 @@ describe('Ride Lifecycle (e2e)', () => {
       .send({ status: 'completed' })
       .expect(200);
 
-    expect(res.body.data.status).toBe('completed');
-    expect(res.body.data.completedAt).toBeDefined();
-    expect(res.body.data.finalFare).toBeDefined();
-    expect(Number(res.body.data.finalFare)).toBeGreaterThan(0);
+    const b = body<{
+      status: string;
+      completedAt: string;
+      finalFare: string;
+    }>(res);
+    expect(b.data.status).toBe('completed');
+    expect(b.data.completedAt).toBeDefined();
+    expect(b.data.finalFare).toBeDefined();
+    expect(Number(b.data.finalFare)).toBeGreaterThan(0);
   });
 
   // ── Validation: invalid transitions ─────────────────────────────
@@ -190,8 +221,9 @@ describe('Ride Lifecycle (e2e)', () => {
       .send({ status: 'in_progress' })
       .expect(400);
 
-    expect(res.body.success).toBe(false);
-    expect(res.body.error.code).toBe('INVALID_STATE_TRANSITION');
+    const b = body(res);
+    expect(b.success).toBe(false);
+    expect(b.error?.code).toBe('INVALID_STATE_TRANSITION');
   });
 
   // ── Auth enforcement ────────────────────────────────────────────
@@ -199,7 +231,11 @@ describe('Ride Lifecycle (e2e)', () => {
   it('should reject ride creation without auth', async () => {
     await request(app.getHttpServer())
       .post('/rides')
-      .send({ pickupLat: 40.758, pickupLng: -73.9855, destinationText: 'Airport' })
+      .send({
+        pickupLat: 40.758,
+        pickupLng: -73.9855,
+        destinationText: 'Airport',
+      })
       .expect(401);
   });
 
@@ -219,8 +255,12 @@ describe('Ride Lifecycle (e2e)', () => {
       .set('Authorization', `Bearer ${riderToken}`)
       .expect(200);
 
-    expect(res.body.data.rides.length).toBeGreaterThanOrEqual(1);
-    expect(res.body.data.pagination.total).toBeGreaterThanOrEqual(1);
+    const b = body<{
+      rides: unknown[];
+      pagination: { total: number };
+    }>(res);
+    expect(b.data.rides.length).toBeGreaterThanOrEqual(1);
+    expect(b.data.pagination.total).toBeGreaterThanOrEqual(1);
   });
 
   it('should return driver earnings', async () => {
@@ -229,7 +269,8 @@ describe('Ride Lifecycle (e2e)', () => {
       .set('Authorization', `Bearer ${driverToken}`)
       .expect(200);
 
-    expect(res.body.data.totalRides).toBeGreaterThanOrEqual(1);
-    expect(res.body.data.totalEarnings).toBeGreaterThan(0);
+    const b = body<{ totalRides: number; totalEarnings: number }>(res);
+    expect(b.data.totalRides).toBeGreaterThanOrEqual(1);
+    expect(b.data.totalEarnings).toBeGreaterThan(0);
   });
 });
