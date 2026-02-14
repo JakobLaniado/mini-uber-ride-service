@@ -5,8 +5,11 @@ import { createClient, api } from '../api';
 import { getBaseUrl } from '../config';
 
 interface AuthResponse {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
   accessToken: string;
-  user: { id: string; email: string; name: string; role: string };
 }
 
 interface Ride {
@@ -46,7 +49,7 @@ export function demoCommand(program: Command): void {
         name: 'Alice (Rider)',
         role: 'rider',
       });
-      spinner.succeed(chalk.green(`Rider registered: ${rider.user.email}`));
+      spinner.succeed(chalk.green(`Rider registered: ${rider.email}`));
 
       // 2. Register driver
       spinner = ora('Registering driver...').start();
@@ -56,7 +59,7 @@ export function demoCommand(program: Command): void {
         name: 'Bob (Driver)',
         role: 'driver',
       });
-      spinner.succeed(chalk.green(`Driver registered: ${driverAuth.user.email}`));
+      spinner.succeed(chalk.green(`Driver registered: ${driverAuth.email}`));
 
       // 3. Setup driver profile
       const driverClient = createClient(baseUrl, driverAuth.accessToken);
